@@ -1,0 +1,31 @@
+services:
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - "5672:5672"
+    restart: unless-stopped
+
+  shipmentdb:
+    image: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: mypass
+    ports:
+      - "3306:3306"
+    restart: unless-stopped
+
+  orderdb:
+    image: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: mypass
+    ports:
+      - "3307:3306"
+    restart: unless-stopped
+
+  routeservice:
+    build:
+      context: ./route
+      no_cache: true
+    depends_on:
+      - rabbitmq
+      - shipmentdb
+      - orderdb
