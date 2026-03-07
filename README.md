@@ -11,3 +11,4 @@ docker compose down
 1. in the orders folder, run 'npm install' command on terminal/shell
 2. run 'npm run dev' command on terminal/shell
 3. goto http://localhost:3000 on any browser
+4. CTRL+C to stop running the webpage
