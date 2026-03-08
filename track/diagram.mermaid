@@ -1,0 +1,32 @@
+flowchart TD
+    
+    subgraph Other Services
+    A[Order Creation and Management Service]
+    B[Route and Transporation Mode Optimization Service]
+    E[Miscillaneous Communication]
+    F[Cargo Consolidation Service]
+    end
+    D[Order Tracking and Delivery Estiamtion Service]
+    A --> |New Order|comms
+    comms --> |New Order|D
+    F --> |New Consilidation|comms
+    comms --> |New Consilidation|D
+    B --> |Route Update|comms
+    comms --> |Route Update|D
+    E-->|General Order Update|comms
+    comms-->|General Order Update|D
+    subgraph Database
+    C[Tracking Database]
+    end
+    L[Tracking Page]
+    C<-->|Order Status|D
+    L-->|Order Status Request|comms
+    comms-->|Order Status Request|D
+    D-->|Order Status|comms
+    comms-->|Order Status|L
+
+    subgraph Communications
+    comms[FastAPI]
+    
+
+    end
