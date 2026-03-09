@@ -17,7 +17,7 @@ interface OrderFormData {
   priority: string;
 }
 
-export default function OrderPage() {
+export default function CreateOrderPage() {
   const [formData, setFormData] = useState<OrderFormData>({
     customerName: '',
     originLocation: '',

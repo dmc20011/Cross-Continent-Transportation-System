@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Create Shipping Order",
-  description: "Order Form",
+  title: "Cross Continent Transportation App",
+  description: "Cross Continent Transportation App",
 };
 
 export default function RootLayout({
