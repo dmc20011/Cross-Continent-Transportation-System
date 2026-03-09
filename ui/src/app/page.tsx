@@ -9,7 +9,7 @@ export default function Home() {
   }
 
   const handleTrackOrder = (username: string) => {
-    router.push(`/api/track?username=${username}`)  // e.g. Goes to localhost:3000/api/track?username=john
+    router.push(`/track?username=${username}`)  // e.g. Goes to localhost:3000/track?username=john
   }
 
   return (
