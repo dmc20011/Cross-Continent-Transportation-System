@@ -3,25 +3,22 @@ import pymysql
 import threading
 import time
 TRACKING_CHANNEL = 'Tracking-Updates'
-class PikaReceiver(threading.Thread):
-    def __init__(self, channel, queue):
+class PikaReceiver():
+    def __init__(self, host, queue,callback):
         threading.Thread.__init__(self)
-        self.channel = channel
-        self.stop_event = threading.Event()
-        self.queue = queue
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=host))
+        self.channel = self.connection.channel()
+        self.channel.queue_declare(queue)
+        self.channel.basic_consume(queue,callback)
+        self.thread = None
 
     def run(self):
-        for method, properties, body in self.channel.consume(self.queue, inactivity_timeout=1):
-            if self.stop_event.is_set():
-                break
-
-            if not method:
-                continue
-
-            print(f"Body: {body}")
+        self.thread = threading.Thread(target=self.channel.start_consuming)
+        self.thread.start()
 
     def stop(self):
-        self.stop_event.set()
+        self.connection.add_callback_threadsafe(self.channel.stop_consuming)
+        self.thread.join()
 
 class TrackingService():
     def __init__(self):
@@ -51,8 +48,10 @@ class TrackingService():
         channel.queue_declare(queue='Tracking-Updates')
 
         channel.queue_declare(TRACKING_CHANNEL)
-        self.receiver_thread = PikaReceiver(channel, TRACKING_CHANNEL)
-        self.receiver_thread.start()
+        def callback(ch, method, properties, body):
+            print(f"Got: {body}")
+        self.receiver_thread = PikaReceiver("localhost", TRACKING_CHANNEL, callback)
+        self.receiver_thread.run()
     
 
 def run():
