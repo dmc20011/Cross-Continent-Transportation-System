@@ -9,4 +9,4 @@ COPY consolidate.py .
 
 EXPOSE 5002
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]
+CMD ["uvicorn", "consolidate:app", "--host", "0.0.0.0", "--port", "5002"]
