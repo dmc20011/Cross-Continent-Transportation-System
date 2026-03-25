@@ -1,15 +1,20 @@
+import os
 import pika
 import pymysql
 import threading
 import json
-import time
+from fastapi import FastAPI, HTTPException
 
 CONSOLIDATION_CHANNEL = 'Consolidation-Updates'
 NEW_ORDER_CHANNEL = 'New-Order'
 
-MAX_WEIGHT_KG = 1000
-MAX_VOLUME_M3 = 10
-
+DB_HOST = os.environ.get("DB_HOST", "shipmentdb")
+DB_USER = os.environ.get("DB_USER", "root")
+DB_PASS = os.environ.get("DB_PASS", "mypass")
+DB_NAME = os.environ.get("DB_NAME", "shipmentdb")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
+MAX_WEIGHT_KG = int(os.environ.get("MAX_WEIGHT_KG", 1000))
+MAX_VOLUME_M3 = int(os.environ.get("MAX_VOLUME_M3", 10))
 
 class PikaReceiver():
     def __init__(self, host, queue, callback):
@@ -31,15 +36,15 @@ class PikaReceiver():
 
 class ConsolidationService():
     def __init__(self):
-        self.mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        self.mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
 
-    def connect_to_db(self, host, user, pswd):
+    def connect_to_db(self):
         self.connection = pymysql.connect(
-            host=host,
+            host=DB_HOST,
             port=3306,
-            user=user,
-            password=pswd,
-            database="shipmentdb"
+            user=DB_USER,
+            password=DB_PASS,
+            database=DB_NAME
         )
 
     def init_db(self):
@@ -53,7 +58,7 @@ class ConsolidationService():
                     total_volume_m3           DOUBLE NOT NULL,
                     order_ids                 JSON NOT NULL,
                     priority                  VARCHAR(50) DEFAULT 'standard',
-                    preferred_transport_mode  VARCHAR(50) DEFAULT 'none',
+                    transport_method          INT DEFAULT -1,
                     status                    VARCHAR(50) DEFAULT 'pending',
                     created                   DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -76,7 +81,7 @@ class ConsolidationService():
         def on_new_order(ch, method, properties, body):
             print(f"New order received: {body}")
 
-        self.receiver_thread = PikaReceiver("localhost", NEW_ORDER_CHANNEL, on_new_order)
+        self.receiver_thread = PikaReceiver(RABBITMQ_HOST, NEW_ORDER_CHANNEL, on_new_order)
         self.receiver_thread.run()
 
     def publish_shipment(self, shipment):
@@ -89,31 +94,101 @@ class ConsolidationService():
         with self.connection.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO shipments
-                   (origin, destination, total_weight_kg, total_volume_m3, order_ids, priority, preferred_transport_mode)
+                   (origin, destination, total_weight_kg, total_volume_m3, order_ids, priority, transport_method)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)""",
                 (shipment["origin"], shipment["destination"],
                  shipment["total_weight_kg"], shipment["total_volume_m3"],
                  json.dumps(shipment["order_ids"]),
                  shipment.get("priority", "standard"),
-                 shipment.get("preferred_transport_mode", "none"))
+                 shipment.get("transport_method", -1))
             )
         self.connection.commit()
         print(f"Inserted shipment: {shipment['order_ids']}")
 
     def consolidate(self, orders):
-        pass
+        groups = {}
+        for order in orders: # Sort 'em
+            key = (order["origin"], order["destination"], order["priority"], order["transport_method"])
+            groups.setdefault(key, []).append(order)
 
-def run():
-    service = ConsolidationService()
-    service.connect_to_db("127.0.0.1", "root", "root")
+        shipments = []
+        for (origin, destination, priority, transport_method), group in groups.items():
+            group.sort(key=lambda order: (order["pickup_deadline"], -order["item_weight"]))
+            bins = []
+
+            for order in group:
+                volume = order["item_length"] * order["item_width"] * order["item_height"]
+                weight = order["item_weight"]
+
+                added = False
+                for b in bins: # try to fit in an existing binn
+                    if b["weight"] + weight <= MAX_WEIGHT_KG and b["volume"] + volume <= MAX_VOLUME_M3:
+                        b["weight"] += weight
+                        b["volume"] += volume
+                        b["order_ids"].append(order["id"])
+                        added = True
+                        break
+
+                if not added: # Otherwise get a new bin
+                    bins.append({"weight": weight, "volume": volume, "order_ids": [order["id"]]})
+
+            for b in bins:
+                shipment = {
+                    "origin": origin,
+                    "destination": destination,
+                    "total_weight_kg": b["weight"],
+                    "total_volume_m3": b["volume"],
+                    "order_ids": b["order_ids"],
+                    "priority": priority,
+                    "transport_method": transport_method
+                }
+                self.save_shipment(shipment)
+                self.publish_shipment(shipment)
+                shipments.append(shipment)
+        return shipments
+
+# FastAPI endpoints
+app = FastAPI()
+service = ConsolidationService()
+
+@app.on_event("startup")
+def startup():
+    service.connect_to_db()
     service.init_db()
-    service.test_db()
     service.connect_rabbitmq()
 
-    time.sleep(1)
-    service.test_db()
-    service.receiver_thread.stop()
+## Simple service life-check
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
+## Gets all consolidated shipments
+@app.get("/shipments")
+def get_shipments():
+    with service.connection.cursor(pymysql.cursors.DictCursor) as cursor:
+        cursor.execute("SELECT * FROM shipments")
+        return cursor.fetchall()
 
-if __name__ == "__main__":
-    run()
+## Gets a shipment by id
+@app.get("/shipments/{shipment_id}")
+def get_shipment(shipment_id: int):
+    with service.connection.cursor(pymysql.cursors.DictCursor) as cursor:
+        cursor.execute("SELECT * FROM shipments WHERE id = %s", (shipment_id,))
+        result = cursor.fetchone()
+    if not result:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return result
+
+## Updates the status of a shipment by id
+@app.patch("/shipments/{shipment_id}/status")
+def update_shipment(shipment_id: int, status: str):
+    with service.connection.cursor(pymysql.cursors.DictCursor) as cursor:
+        cursor.execute("UPDATE shipments SET status = %s WHERE id = %s", (status, shipment_id))
+    service.connection.commit()
+    return {"id": shipment_id, "status": status}
+
+## Manual consolidation trigger
+@app.post("/consolidate")
+def consolidate():
+
+    pass

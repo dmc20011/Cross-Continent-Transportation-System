@@ -9,6 +9,7 @@ services:
     image: mariadb
     environment:
       MYSQL_ROOT_PASSWORD: mypass
+      MYSQL_DATABASE: shipmentdb
     ports:
       - "3306:3306"
     restart: unless-stopped
@@ -29,3 +30,22 @@ services:
       - rabbitmq
       - shipmentdb
       - orderdb
+
+  consolidation:
+    build:
+      context: ./consolidation
+      no_cache: true
+    ports:
+      - "5002:5002"
+    environment:
+      DB_HOST: shipmentdb
+      DB_USER: root
+      DB_PASS: mypass
+      DB_NAME: shipmentdb
+      RABBITMQ_HOST: rabbitmq
+      MAX_WEIGHT_KG: 1000
+      MAX_VOLUME_M3: 10
+    depends_on:
+      - rabbitmq
+      - shipmentdb
+    restart: unless-stopped
