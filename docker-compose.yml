@@ -12,14 +12,19 @@ services:
       MYSQL_DATABASE: shipmentdb
     ports:
       - "3306:3306"
+    volumes:
+      - ./database/shipments.sql:/docker-entrypoint-initdb.d/shipments.sql
     restart: unless-stopped
 
   orderdb:
     image: mariadb
     environment:
       MYSQL_ROOT_PASSWORD: mypass
+      MYSQL_DATABASE: orderdb
     ports:
       - "3307:3306"
+    volumes:
+      - ./database/orders.sql:/docker-entrypoint-initdb.d/orders.sql
     restart: unless-stopped
 
   routeservice:
