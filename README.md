@@ -29,7 +29,7 @@ docker compose down # stop and delete all containers
 
 | id | created | origin | destination | weight_kg | volume_m3 | customer_info | priority | preferred_transport_mode | status
 |-|-|-|-|-|-|-|-|-|-|
-| INT AUTO_INCREMENT PRIMARY KEY | DATETIME | VARCHAR(255) | VARCHAR(255) | DOUBLE | DOUBLE | JSON | VARCHAR(50) | VARCHAR(50) | VARCHAR(50)
+| INT AUTO_INCREMENT PRIMARY KEY | DATETIME | VARCHAR(255) | VARCHAR(255) | DOUBLE | DOUBLE | JSON | ENUM | ENUM | ENUM
 
 ```sql
 CREATE TABLE orders (
@@ -40,9 +40,9 @@ CREATE TABLE orders (
     weight_kg DOUBLE,
     volume_m3 DOUBLE,
     customer_info JSON,
-    priority VARCHAR(50),
-    preferred_transport_mode VARCHAR(50),
-    status VARCHAR(50)
+    priority ENUM('Standard', 'Express'),
+    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
+    status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );
 ```
 
@@ -50,7 +50,7 @@ CREATE TABLE orders (
 
 | id | created | origin | destination | total_weight_kg | total_volume_m3 | order_ids | priority | preferred_transport_mode | status
 |-|-|-|-|-|-|-|-|-|-|
-| INT AUTO_INCREMENT PRIMARY KEY | DATETIME | VARCHAR(255) | VARCHAR(255) | DOUBLE | DOUBLE | JSON | VARCHAR(50) | VARCHAR(50) | VARCHAR(50)
+| INT AUTO_INCREMENT PRIMARY KEY | DATETIME | VARCHAR(255) | VARCHAR(255) | DOUBLE | DOUBLE | JSON | ENUM | ENUM | ENUM
 
 ```sql
 CREATE TABLE shipments (
@@ -61,8 +61,8 @@ CREATE TABLE shipments (
     total_weight_kg DOUBLE,
     total_volume_m3 DOUBLE,
     order_ids JSON,
-    priority VARCHAR(50),
-    preferred_transport_mode VARCHAR(50),
-    status VARCHAR(50)
+    priority ENUM('Standard', 'Express'),
+    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
+    status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );
 ```
