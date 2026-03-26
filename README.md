@@ -3,6 +3,7 @@
 ## How to run Docker containers
 
 ```bash
+docker compose build # rebuild all containers
 docker compose up # create and start all containers
 docker compose stop # stop all containers
 docker compose start # start all containers

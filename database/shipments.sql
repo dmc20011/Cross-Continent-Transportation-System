@@ -6,7 +6,7 @@ CREATE TABLE shipments (
     total_weight_kg DOUBLE,
     total_volume_m3 DOUBLE,
     order_ids JSON,
-    priority VARCHAR(50),
-    preferred_transport_mode VARCHAR(50),
-    status VARCHAR(50)
+    priority ENUM('Standard', 'Express'),
+    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
+    status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );

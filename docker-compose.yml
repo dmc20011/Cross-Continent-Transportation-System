@@ -24,7 +24,7 @@ services:
     ports:
       - "3307:3306"
     volumes:
-      - ./database/shipments.sql:/docker-entrypoint-initdb.d/orders.sql
+      - ./database/orders.sql:/docker-entrypoint-initdb.d/orders.sql
     restart: unless-stopped
 
   routeservice:
