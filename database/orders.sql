@@ -3,11 +3,12 @@ CREATE TABLE orders (
     created DATETIME,
     origin VARCHAR(255),
     destination VARCHAR(255),
+    dist_km INT,
     weight_kg DOUBLE,
     volume_m3 DOUBLE,
     customer_info JSON,
     priority ENUM('Standard', 'Express'),
-    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
+    preferred_transport_mode ENUM('Sea', 'Rail', 'Truck', 'Air'),
     status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );
 
