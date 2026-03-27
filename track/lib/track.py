@@ -41,8 +41,6 @@ class PikaReceiver():
         self.connection.add_callback_threadsafe(self.channel.stop_consuming)
         self.thread.join()
 
-
-
 class TrackingService():
     def __init__(self, mq_host, db_host, db_user, db_pass):
         self.mq_connection_upsert = pika.BlockingConnection(pika.ConnectionParameters(host=mq_host))
@@ -52,9 +50,20 @@ class TrackingService():
         
 
     def tracking_item_from_row(self, row):
-        return TrackingItem(orderNumber=row[1], parentNumber=row[2],
-                    orderDate=row[3], orderLastUpdate=row[4],currentLocation=row[5],targetLocation=row[6],
-                    transportationMethod=row[7], deliveryEstimateEarly=row[8], deliveryEstimateLate=row[9])
+        print(row)
+        return TrackingItem(username = row[0],
+                            orderNumber=row[1], 
+                            parentNumber=row[2], 
+                            orderDate=row[3].strftime(DATE_FORMAT_STR),
+                            orderLastUpdate=row[4].strftime(DATE_FORMAT_STR),
+                            startLocation=row[5],
+                            currentLocation=row[6],
+                            targetLocation=row[7],
+                            distkm=row[8],
+                            transportationMethod=TransitMethod[row[9]], 
+                            deliveryEstimateEarly=row[10].strftime(DATE_FORMAT_STR), 
+                            deliveryEstimateLate=row[11].strftime(DATE_FORMAT_STR),
+                            orderStatus=OrderStatus[row[12]])
 
     def calculate_delivery_estimate(self, order_date: str, distance_km: int, transit_method: TransitMethod, first_track: bool):
         if first_track:
@@ -100,8 +109,9 @@ class TrackingService():
         )
 
     def check_for_user(self, username: str):
+        print(f"checking for user: {username}")
         with self.db_connection.cursor() as cur:
-            cur.execute(f"SELECT * FROM User WHERE username = '{username}'")
+            cur.execute("SELECT * FROM User WHERE username = %s", (username,))
             res = cur.fetchall()
             if len(res) > 0:
                 return True
@@ -109,21 +119,42 @@ class TrackingService():
                 return False
 
     def get_all_orders(self, username: str):
+        print(f"getting orders for: {username}")
         tracking_items = []
         with self.db_connection.cursor() as cur: 
-            cur.execute(f"SELECT * FROM Tracking WHERE username = '{username}")
+            cur.execute("SELECT * FROM Tracking WHERE username = %s", (username,))
             for item in cur.fetchall():
                 tracking_items.append(self.tracking_item_from_row(item))
-            return tracking_items
+        return tracking_items
 
     def upsert_tracking_item(self, username: str, tracking_item: TrackingItem):
         with self.db_connection.cursor() as cur:
-            cur.execute(f"REPLACE INTO Tracking (username, orderNumber, parentNumber, orderDate, lastUpdate, startLocation, currentLocation, targetLocaiton, \
-                    distKM, transportMethod, deliveryEstimateEarly, deliveryEstimateLate, orderStatus) VALUES \
-                        ({tracking_item.username}, {tracking_item.orderNumber}, {tracking_item.parentNumber}, {tracking_item.orderDate},\
-                        {tracking_item.orderLastUpdate}, {tracking_item.startLocation}, {tracking_item.currentLocation}, \
-                        {tracking_item.targetLocation}, {tracking_item.distkm}, {tracking_item.transportationMethod}, \
-                        {tracking_item.deliveryEstimateEarly}, {tracking_item.deliveryEstimateLate}, {tracking_item.orderStatus})", )
+            cur.execute("""
+                INSERT INTO Tracking (
+                    username, orderNumber, parentNumber, orderDate, lastUpdate,
+                    startLocation, currentLocation, targetLocation,
+                    distKM, transportMethod, deliveryEstimateEarly,
+                    deliveryEstimateLate, orderStatus
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    lastUpdate = VALUES(lastUpdate),
+                    currentLocation = VALUES(currentLocation),
+                    orderStatus = VALUES(orderStatus)
+            """, (
+                tracking_item.username,
+                tracking_item.orderNumber,
+                tracking_item.parentNumber,
+                tracking_item.orderDate,
+                tracking_item.orderLastUpdate,
+                tracking_item.startLocation,
+                tracking_item.currentLocation,
+                tracking_item.targetLocation,
+                tracking_item.distkm,
+                tracking_item.transportationMethod.value,
+                tracking_item.deliveryEstimateEarly,
+                tracking_item.deliveryEstimateLate,
+                tracking_item.orderStatus.value
+            ))
             self.db_connection.commit()
             return True
         return False
@@ -158,38 +189,41 @@ class TrackingService():
             late = old_data.deliveryEstimateLate
         
         tracking_item = TrackingItem(username=tracking_data.username, orderNumber=tracking_data.orderNumber, 
-                                     parentNumber=tracking_data.parentNumber, orderLastUpdate=order_update,
-                                    startLocation=old_data.startLocation, currentLocation=tracking_data.currentLocation,
-                     transportationMethod=transit_method.name, deliveryEstimateEarly=early, deliveryEstimateLate=late, 
+                                    parentNumber=tracking_data.parentNumber, orderDate=old_data.orderDate, orderLastUpdate=order_update,
+                                    startLocation=tracking_data.currentLocation, currentLocation=tracking_data.currentLocation, 
+                                    targetLocation=tracking_data.targetLocation, distkm= tracking_data.distkm,
+                     transportationMethod=transit_method, deliveryEstimateEarly=early, deliveryEstimateLate=late, 
                      orderStatus=tracking_data.orderStatus)
         
         return tracking_item
 
     def create_or_update_tracking_item(self, tracking_item: CreateOrUpdateTracker):
-
         with self.db_connection.cursor() as cur:
-            cur.execute(f"SELECT * FROM Tracking WHERE username='{tracking_item.username}' AND orderNumber={tracking_item.orderNumber}")
+            cur.execute(
+                "SELECT * FROM Tracking WHERE username = %s AND orderNumber = %s",
+                (tracking_item.username, tracking_item.orderNumber)
+            )
             row = cur.fetchone()
-            if len(row) > 0:
+
+            if row:  
                 existing_instance = self.tracking_item_from_row(row)
                 return self.update_tracking_item(existing_instance, tracking_item)
             else:
-                #do create
                 return self.create_tracking_item(tracking_item)
     
     def add_user(self, username: str):
         with self.db_connection.cursor() as cur:
-            cur.execute(f"INSERT INTO USER (username) VALUES ({username})")
+            cur.execute("INSERT INTO User (username) VALUES (%s)", (username,))
             self.db_connection.commit()
 
-    def delete_user(self, username):
-        query = "DELETE FROM User WHERE username = %s"
+    def delete_order(self, username: str, orderNumber: str):
+        query = "DELETE FROM Tracking WHERE username = %s AND orderNumber = %s"
         with self.db_connection.cursor() as cur:
-            cur.execute(query, (username,))
+            cur.execute(query, (username, orderNumber))
             self.db_connection.commit()
     
-    def delete_order(self, username: str, orderNumber: str):
-        query = f"DELETE FROM Tracking WHERE username = {username} AND orderNumber = {orderNumber}"
+    def delete_user(self, username):
+        query = "DELETE FROM User WHERE username = %s"
         with self.db_connection.cursor() as cur:
             cur.execute(query, (username,))
             self.db_connection.commit()
@@ -218,33 +252,36 @@ class TrackingService():
         self.upsert_thread = PikaReceiver("localhost", TRACKING_CHANNEL_CREATE_UPDATE, create_update_cb)
         self.delete_thread = PikaReceiver("localhost", TRACKING_CHANNEL_DELETE, delete_cb)
         self.upsert_thread.run()
-        self.upsert_thread.run()
-def run():
-    app = FastAPI()
-    
-    service = TrackingService("localhost", "localhost", "root", "root")
-    service.connect_rabbitmq()
-    
-    def shutdown():
-        service.upsert_thread.stop()
-        service.delete_thread.stop()
-        service.mq_connection_delete.close()
-        service.mq_connection_upsert.close()
-        service.db_connection.close()
-    
-    def handle_shutdown(signum, frame):
-        shutdown()
-        exit(0)
-    
-    signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
-    signal.signal(signal.SIGTERM, handle_shutdown)  # kill / docker stop
-    
-    
-    @app.get("/tracking")
-    async def get_order_tracking_data(tracking_req: TrackingReq):
-        user = tracking_req.username
-        orders = service.get_all_orders(user)
-        return {"orders": orders}
+        self.delete_thread.run()
+service = None
+
+def shutdown():
+    service.upsert_thread.stop()
+    service.delete_thread.stop()
+    service.mq_connection_delete.close()
+    service.mq_connection_upsert.close()
+    service.db_connection.close()
+
+def handle_shutdown(signum, frame):
+    shutdown()
+    exit(0)
+
+signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
+signal.signal(signal.SIGTERM, handle_shutdown)  # kill / docker stop
+
+app = FastAPI()
+
+service = TrackingService("localhost", "localhost", "root", "root")
+service.connect_rabbitmq()
+
+@app.get("/")
+async def default():
+    print("hoi")
+
+@app.get("/tracking/{user}")
+def get_order_tracking_data(user):   # remove async
+    orders = service.get_all_orders(user)
+    return {"orders": orders}
 
 
 
