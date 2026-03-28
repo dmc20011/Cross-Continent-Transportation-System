@@ -27,6 +27,17 @@ services:
       - ./database/orders.sql:/docker-entrypoint-initdb.d/orders.sql
     restart: unless-stopped
 
+  trackdb:
+    image: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: mypass
+      MYSQL_DATABASE: trackingdb
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./database/tracking.sql:/docker-entrypoint-initdb.d/tracking.sql
+    restart: unless-stopped
+
   routeservice:
     build:
       context: ./route
@@ -34,7 +45,27 @@ services:
     depends_on:
       - rabbitmq
       - shipmentdb
-      - orderdb
+    restart: unless-stopped
+
+  trackservice:
+    build:
+      context: ./track
+      no_cache: true
+    ports:
+      - "80:80"
+    environment:
+      DB_HOST: trackdb
+      DB_PASS: mypass
+      DB_NAME: trackingdb
+      DB_USER: root
+      RABBITMQ_HOST: rabbitmq  
+      MQ_USER: user
+      MQ_PASS: pass
+    depends_on:
+      - rabbitmq
+      - trackdb
+    restart: unless-stopped
+      
 
   consolidation:
     build:
@@ -54,3 +85,17 @@ services:
       - rabbitmq
       - shipmentdb
     restart: unless-stopped
+
+  ui:
+    build:
+      context: ./ui
+      no_cache: true
+    ports:
+      - 3000:3000
+    environment:
+      NEXT_PUBLIC_API: trackservice
+    depends_on:
+      - routeservice
+      - consolidation
+      - trackservice
+      

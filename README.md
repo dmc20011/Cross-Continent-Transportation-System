@@ -27,42 +27,74 @@ docker compose down # stop and delete all containers
 
 ### Orders
 
-| id | created | origin | destination | weight_kg | volume_m3 | customer_info | priority | preferred_transport_mode | status
-|-|-|-|-|-|-|-|-|-|-|
-| INT AUTO_INCREMENT PRIMARY KEY | DATETIME | VARCHAR(255) | VARCHAR(255) | DOUBLE | DOUBLE | JSON | ENUM | ENUM | ENUM
-
 ```sql
 CREATE TABLE orders (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    created DATETIME,
-    origin VARCHAR(255),
-    destination VARCHAR(255),
-    weight_kg DOUBLE,
-    volume_m3 DOUBLE,
-    customer_info JSON,
-    priority ENUM('Standard', 'Express'),
-    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
-    status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
+    ID INT AUTO_INCREMENT PRIMARY KEY,
+    Created DATETIME,
+    CustomerInfo JSON,
+    Origin VARCHAR(255),
+    Destination VARCHAR(255),
+    WeightKG DOUBLE,
+    VolumeM3 DOUBLE,
+    Priority ENUM('Standard', 'Express'),
+    PreferredTransportMode ENUM('None', 'Sea', 'Rail', 'Truck', 'Air'),
+    Status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );
 ```
 
 ### Shipments
 
-| id | created | origin | destination | total_weight_kg | total_volume_m3 | order_ids | priority | preferred_transport_mode | status
-|-|-|-|-|-|-|-|-|-|-|
-| INT AUTO_INCREMENT PRIMARY KEY | DATETIME | VARCHAR(255) | VARCHAR(255) | DOUBLE | DOUBLE | JSON | ENUM | ENUM | ENUM
-
 ```sql
 CREATE TABLE shipments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    created DATETIME,
-    origin VARCHAR(255),
-    destination VARCHAR(255),
-    total_weight_kg DOUBLE,
-    total_volume_m3 DOUBLE,
-    order_ids JSON,
-    priority ENUM('Standard', 'Express'),
-    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
-    status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
+    ShipmentID INT AUTO_INCREMENT PRIMARY KEY,
+    Created DATETIME,
+    Origin VARCHAR(255),
+    Destination VARCHAR(255),
+    TotalWeightKG DOUBLE,
+    TotalVolumnM3 DOUBLE,
+    OrderIDs JSON,
+    Priority ENUM('Standard', 'Express'),
+    PreferredTransportMode ENUM('Sea', 'Rail', 'Truck', 'Air'),
+    OrderStatus ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled'),
+    RouteID: INT
+);
+```
+
+```sql
+CREATE TABLE routes (
+    RouteID INT AUTO_INCREMENT PRIMARY KEY,
+    Route JSON,
+    DistKM INT
+);
+```
+
+### Tracking
+
+```sql 
+CREATE TABLE IF NOT EXISTS User (
+    username VARCHAR(255) PRIMARY KEY
+);
+```
+
+```sql
+CREATE TABLE IF NOT EXISTS Tracking (
+    username VARCHAR(255),
+    orderNumber VARCHAR(255),
+    parentNumber VARCHAR(255),
+    orderDate DATE,
+    lastUpdate DATE,
+    startLocation VARCHAR(255),
+    currentLocation VARCHAR(255),
+    targetLocation VARCHAR(255),
+    distKM INT,
+    transportMethod ENUM('Sea', 'Rail', 'Truck', 'Air'),
+    deliveryEstimateEarly DATE,
+    deliveryEstimateLate DATE,
+    orderStatus ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled'),
+    
+    PRIMARY KEY (username, orderNumber),
+    FOREIGN KEY (username) REFERENCES User(username)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
 );
 ```
