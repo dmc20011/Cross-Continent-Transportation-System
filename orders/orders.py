@@ -1,22 +1,23 @@
 # orders_api/main.py
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import mysql.connector
+import pymysql
 from datetime import datetime
+import os
 import pika
 import json
 
-app = FastAPI()
+TRACKING_CHANNEL_CREATE_UPDATE = 'Tracking-Updates'
+NEW_ORDER_CHANNEL = 'New-Order'
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+DB_HOST = os.environ.get("DB_HOST", "ordersdb")
+DB_USER = os.environ.get("DB_USER", "root")
+DB_PASS = os.environ.get("DB_PASS", "mypass")
+DB_NAME = os.environ.get("DB_NAME", "ordersdb")
+
+app = FastAPI()
 
 class OrderCreate(BaseModel):
     username: str
@@ -31,14 +32,14 @@ class OrderCreate(BaseModel):
     transportMode: str
     priority: str
 
-def get_db():
-    return mysql.connector.connect(
-        unix_socket="/opt/local/var/run/mariadb/mysqld.sock",
-        user="root",
-        password="root",
-        database="transportation",
+def get_db(self):
+    self.connection = pymysql.connect(
+        host=DB_HOST,
+        port=3306,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME
     )
-
 
 @app.post("/api/orders")
 def create_order(order: OrderCreate):
@@ -56,8 +57,8 @@ def create_order(order: OrderCreate):
             "standard": "Standard",
             "express": "Express",
         }
-        db_mode = transport_map.get(order.transportMode, "Truck")
-        db_priority = priority_map.get(order.priority, "Standard")
+        transportMode = transport_map.get(order.transportMode, "Truck")
+        priority = priority_map.get(order.priority, "Standard")
 
         dist_km = 0
         volume_m3 = order.itemLength * order.itemWidth * order.itemHeight
@@ -83,8 +84,8 @@ def create_order(order: OrderCreate):
                 order.itemWeight,
                 volume_m3,
                 order.username,
-                db_priority,
-                db_mode,
+                priority,
+                transportMode,
             ),
         )
 
@@ -93,23 +94,46 @@ def create_order(order: OrderCreate):
         cursor.close()
         conn.close()
 
-        # Send RabbitMQ 
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        # Send to tracking via rabbitMQ
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
         channel = connection.channel()
-        channel.queue_declare(queue='orders_queue', durable=True)
+        channel.queue_declare(queue=TRACKING_CHANNEL_CREATE_UPDATE, durable=True)
 
         order = {
-            "origin_location": order.originLocation,
-            "destination": order.destinationLocation,
-            "item_weight": order.itemWeight,
-            "volume": volume_m3,
             "username": order.username,
-            "priority": db_priority,
-            "mode": db_mode
+            "orderNumber": order_id,
+            "parentNumber": 0,
+            "orderDate": 0,
+            "currentLocation": order.originLocation,
+            "targetLocation": order.destinationLocation,
+            "distkm": 0,
+            "transporationMethod": transportMode,
+            "orderStatus":"Created",
         }
+
         channel.basic_publish(
             exchange='',
-            routing_key='orders_queue',
+            routing_key=TRACKING_CHANNEL_CREATE_UPDATE,
+            body=json.dumps(order),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+        # Send to consolidation via RabbitMQ
+        channel.queue_declare(queue=NEW_ORDER_CHANNEL, durable=True)
+
+        order = {
+            "orderNumber": order_id,
+            "origin": order.originLocation,
+            "destination": order.destinationLocation,
+            "volume": volume_m3,
+            "weight": order.itemWeight,
+            "transporationMethod": transportMode,
+            "status":"Created",
+        }
+
+        channel.basic_publish(
+            exchange='',
+            routing_key=NEW_ORDER_CHANNEL,
             body=json.dumps(order),
             properties=pika.BasicProperties(delivery_mode=2)
         )
