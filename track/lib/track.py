@@ -48,6 +48,7 @@ class PikaReceiver():
 
 class TrackingService():
     def __init__(self, mq_host, db_host, db_user, db_pass, db_name):
+        print(f"Connecting too {mq_host} for mq")
         self.mq_connection_upsert = pika.BlockingConnection(
             pika.ConnectionParameters(host=mq_host,))
         self.mq_connection_delete = pika.BlockingConnection(
@@ -245,8 +246,9 @@ class TrackingService():
 
     def connect_rabbitmq(self):
         channel = self.mq_connection_upsert.channel()
-        channel.queue_purge(TRACKING_CHANNEL_CREATE_UPDATE)
         channel.queue_declare(TRACKING_CHANNEL_CREATE_UPDATE, durable=False)
+        channel.queue_purge(TRACKING_CHANNEL_CREATE_UPDATE)
+
 
         def create_update_cb(ch, method, properties, body):
             print("Got an update req")
@@ -263,8 +265,9 @@ class TrackingService():
                 print("Error in Upsert thread: bad request")
 
         channel_del = self.mq_connection_delete.channel()
-        channel_del.queue_purge(TRACKING_CHANNEL_DELETE)
         channel_del.queue_declare(TRACKING_CHANNEL_DELETE, durable=False)
+        channel_del.queue_purge(TRACKING_CHANNEL_DELETE)
+
 
         def delete_cb(ch, method, properties, body):
             print("Got a delete req")
