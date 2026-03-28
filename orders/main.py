@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from typing import Optional
 import mysql.connector
 from datetime import datetime
+import pika
+import json
 
 app = FastAPI()
 
@@ -28,7 +30,6 @@ class OrderCreate(BaseModel):
     specialInstructions: Optional[str] = None
     transportMode: str
     priority: str
-
 
 def get_db():
     return mysql.connector.connect(
@@ -72,7 +73,6 @@ def create_order(order: OrderCreate):
                 %s, %s, 'Created'
             )
         """
-        
 
         cursor.execute(
             sql,
@@ -87,13 +87,37 @@ def create_order(order: OrderCreate):
                 db_mode,
             ),
         )
+
         conn.commit()
         order_id = cursor.lastrowid
         cursor.close()
         conn.close()
 
-        return {"ok": True, "orderId": order_id}
+        # Send RabbitMQ 
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        channel = connection.channel()
+        channel.queue_declare(queue='orders_queue', durable=True)
 
+        order = {
+            "origin_location": order.originLocation,
+            "destination": order.destinationLocation,
+            "item_weight": order.itemWeight,
+            "volume": volume_m3,
+            "username": order.username,
+            "priority": db_priority,
+            "mode": db_mode
+        }
+        channel.basic_publish(
+            exchange='',
+            routing_key='orders_queue',
+            body=json.dumps(order),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+        connection.close()
+
+        return {"ok": True, "orderId": order_id}
+    
     except Exception as e:
         print("Error in create_order:", e)
         raise HTTPException(status_code=500, detail=str(e))
