@@ -42,7 +42,7 @@ export default function CreateOrderPage() {
     console.log('Submitting:', formData);
 
     try {
-      const response = await fetch('http://localhost:8000/api/createOrder', {
+      const response = await fetch('http://localhost:8000/api/neworder', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,6 +54,8 @@ export default function CreateOrderPage() {
       });
 
       if (!response.ok) {
+        const errorText = await response.text(); // or response.json() if JSON
+        console.error('API error:', response.status, errorText);
         throw new Error(`Error: ${response.status}`);
       }
 
