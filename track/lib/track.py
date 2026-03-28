@@ -33,9 +33,11 @@ class PikaReceiver():
         self.connection = pika.BlockingConnection(
             pika.ConnectionParameters(host=host))
         self.channel = self.connection.channel()
+        print(f"Creating a queue: {queue} at host: {host}")
         self.channel.queue_declare(queue, durable=False)
         self.channel.queue_purge(queue)
         self.channel.basic_consume(queue, callback)
+        print("Done creation")
         self.thread = None
 
     def run(self):
