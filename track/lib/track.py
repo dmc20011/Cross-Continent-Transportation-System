@@ -28,11 +28,13 @@ DATE_FORMAT_STR = "%Y-%m-%d"
 
 
 class PikaReceiver():
+    #add credentials if needed
     def __init__(self, host, queue, callback):
         self.connection = pika.BlockingConnection(
             pika.ConnectionParameters(host=host))
         self.channel = self.connection.channel()
-        self.channel.queue_declare(queue)
+        self.channel.queue_declare(queue, durable=False)
+        self.channel.queue_purge(queue)
         self.channel.basic_consume(queue, callback)
         self.thread = None
 
@@ -49,10 +51,7 @@ class PikaReceiver():
 class TrackingService():
     def __init__(self, mq_host, db_host, db_user, db_pass, db_name):
         print(f"Connecting too {mq_host} for mq")
-        self.mq_connection_upsert = pika.BlockingConnection(
-            pika.ConnectionParameters(host=mq_host,))
-        self.mq_connection_delete = pika.BlockingConnection(
-            pika.ConnectionParameters(host=mq_host))
+        self.mq_host = mq_host
         self.db_connection: pymysql.Connection = None
         self.connect_to_db(db_host, db_user, db_pass, db_name)
 
@@ -245,11 +244,6 @@ class TrackingService():
             self.db_connection.commit()
 
     def connect_rabbitmq(self):
-        channel = self.mq_connection_upsert.channel()
-        channel.queue_declare(TRACKING_CHANNEL_CREATE_UPDATE, durable=False)
-        channel.queue_purge(TRACKING_CHANNEL_CREATE_UPDATE)
-
-
         def create_update_cb(ch, method, properties, body):
             print("Got an update req")
             data = json.loads(body.decode())
@@ -259,15 +253,12 @@ class TrackingService():
                 if not service.check_for_user(body.username):
                     service.add_user(body.username)
                     time.sleep(0.01)
-                new_tracking_item = self.create_or_update_tracking_item(tracking_item=body)
-                self.upsert_tracking_item(new_tracking_item.username, new_tracking_item)
+                new_tracking_item = self.create_or_update_tracking_item(
+                    tracking_item=body)
+                self.upsert_tracking_item(
+                    new_tracking_item.username, new_tracking_item)
             else:
                 print("Error in Upsert thread: bad request")
-
-        channel_del = self.mq_connection_delete.channel()
-        channel_del.queue_declare(TRACKING_CHANNEL_DELETE, durable=False)
-        channel_del.queue_purge(TRACKING_CHANNEL_DELETE)
-
 
         def delete_cb(ch, method, properties, body):
             print("Got a delete req")
@@ -281,14 +272,14 @@ class TrackingService():
                 print("Error in Deletion thread: bad request")
 
         self.upsert_thread = PikaReceiver(
-            "localhost", TRACKING_CHANNEL_CREATE_UPDATE, create_update_cb)
+            self.mq_host, TRACKING_CHANNEL_CREATE_UPDATE, create_update_cb)
         self.delete_thread = PikaReceiver(
-            "localhost", TRACKING_CHANNEL_DELETE, delete_cb)
+            self.mq_host, TRACKING_CHANNEL_DELETE, delete_cb)
         self.upsert_thread.run()
         self.delete_thread.run()
 
-
 service = TrackingService(os.getenv("RABBITMQ_HOST"), os.getenv("DB_HOST"), os.getenv("DB_USER"), os.getenv("DB_PASS"), os.getenv("DB_NAME"))
+
 
 def lifespan(app: FastAPI, service: TrackingService = service):
     service.connect_rabbitmq()

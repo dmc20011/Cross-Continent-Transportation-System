@@ -3,6 +3,7 @@ services:
     image: rabbitmq
     ports:
       - "5672:5672"
+      - "15672:15672"
     restart: unless-stopped
 
   shipmentdb:
@@ -51,18 +52,20 @@ services:
     build:
       context: ./track
       no_cache: true
-    depends_on:
-      - rabbitmq
-      - trackdb
     ports:
       - "8000:80"
     environment:
       DB_HOST: trackdb
-      DB_USER: root
       DB_PASS: mypass
       DB_NAME: trackingdb
-      RABBITMQ_HOST: localhost  
-  
+      RABBITMQ_HOST: rabbitmq  
+      MQ_USER: user
+      MQ_PASS: pass
+    depends_on:
+      - rabbitmq
+      - trackdb
+    restart: unless-stopped
+      
 
   consolidation:
     build:
