@@ -3,7 +3,6 @@ services:
     image: rabbitmq
     ports:
       - "5672:5672"
-      - "15672:15672"
     restart: unless-stopped
 
   shipmentdb:
@@ -46,7 +45,7 @@ services:
     depends_on:
       - rabbitmq
       - shipmentdb
-      - orderdb
+    restart: unless-stopped
 
   trackservice:
     build:
