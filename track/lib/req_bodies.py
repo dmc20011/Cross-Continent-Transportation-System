@@ -6,17 +6,17 @@ class TrackingReq(BaseModel):
     username: str
 
 class TransitMethod(Enum):
-    Sea = 0
-    Rail = 1
-    Truck = 2
-    Air = 3
+    Sea = 1
+    Rail = 2
+    Truck = 3
+    Air = 4
 
 class OrderStatus(Enum):
-    Created = 0
-    Processing = 1 
-    Shipped = 2 
-    Delivered = 3 
-    Cancelled = 4
+    Created = 1
+    Processing = 2 
+    Shipped = 3
+    Delivered = 4 
+    Cancelled = 5
     
 #Tracking item for frontend
 class TrackingItem(BaseModel):
@@ -51,3 +51,6 @@ class DeleteOrder(BaseModel):
 
 class DeleteUser(BaseModel):
     username: str
+
+class Failure(BaseModel):
+    fail: str

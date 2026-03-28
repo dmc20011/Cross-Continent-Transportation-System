@@ -37,11 +37,12 @@ CREATE TABLE orders (
     created DATETIME,
     origin VARCHAR(255),
     destination VARCHAR(255),
+    dist_km INT,
     weight_kg DOUBLE,
     volume_m3 DOUBLE,
     customer_info JSON,
     priority ENUM('Standard', 'Express'),
-    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
+    preferred_transport_mode ENUM('Sea', 'Rail', 'Truck', 'Air'),
     status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );
 ```
@@ -58,11 +59,46 @@ CREATE TABLE shipments (
     created DATETIME,
     origin VARCHAR(255),
     destination VARCHAR(255),
+    dist_km INT
     total_weight_kg DOUBLE,
     total_volume_m3 DOUBLE,
     order_ids JSON,
     priority ENUM('Standard', 'Express'),
-    preferred_transport_mode ENUM('Air', 'Truck', 'Rail', 'Sea'),
-    status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
+    preferred_transport_mode ENUM('Sea', 'Rail', 'Truck', 'Air'),
+    orderStatus ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
+);
+```
+
+### Tracking
+
+```sql 
+CREATE TABLE IF NOT EXISTS User (
+    username VARCHAR(255) PRIMARY KEY
+);
+```
+| username | orderNumber | parentNumber | orderDate | lastUpdate | startLocation | currentLocation | targetLocation | distKM | transportMethod | deliveryEstimateEarly | deliveryEstimateLate |orderStatus|
+|-|-|-|-|-|-|-|-|-|-|-|-|-|
+| VARCHAR(255) | VARCHAR(255) | VARCHAR(255) | DATE | DATE | VARCHAR(255) | VARCHAR(255) | VARCHAR(255) | INT | ENUM('Sea', 'Rail', 'Truck', 'Air') | DATE | DATE | orderStatus ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled') |
+
+```sql
+CREATE TABLE IF NOT EXISTS Tracking (
+    username VARCHAR(255),
+    orderNumber VARCHAR(255),
+    parentNumber VARCHAR(255),
+    orderDate DATE,
+    lastUpdate DATE,
+    startLocation VARCHAR(255),
+    currentLocation VARCHAR(255),
+    targetLocation VARCHAR(255),
+    distKM INT,
+    transportMethod ENUM('Sea', 'Rail', 'Truck', 'Air'),
+    deliveryEstimateEarly DATE,
+    deliveryEstimateLate DATE,
+    orderStatus ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled'),
+    
+    PRIMARY KEY (username, orderNumber),
+    FOREIGN KEY (username) REFERENCES User(username)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
 );
 ```
