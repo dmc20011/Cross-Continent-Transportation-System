@@ -3,6 +3,7 @@ import pika
 import pymysql
 import threading
 import json
+import requests
 from fastapi import FastAPI, HTTPException
 
 CONSOLIDATION_CHANNEL = 'Consolidation-Updates'
@@ -200,5 +201,6 @@ def update_shipment(shipment_id: int, status: str):
 ## Manual consolidation trigger
 @app.post("/consolidate")
 def consolidate():
-
-    pass
+    orders = requests.get("http://orderservice:PORT/orders?status=pending").json()
+    shipments = service.consolidate(orders)
+    return {"shipments_created": len(shipments), "shipments": shipments}
