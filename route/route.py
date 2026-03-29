@@ -199,7 +199,7 @@ class RouteService():
 
         g = build_graph()
         route = find_route(g, src, dst, pri, pre)
-        print(route)
+        print(f"Found best route: {route}")
 
         with self.ship_db_conn.cursor() as cursor:
             route_query = "INSERT INTO routes (Route, DistKM) VALUES (%s, %s)"
@@ -250,7 +250,7 @@ class RouteService():
                     Cancelled = 5
 
                 tracking = {
-                    "username": "newuser",
+                    "username": order[2],
                     "orderNumber": str(order[0]),
                     "parentNumber": str(shipment_id),
                     "orderDate": order[1].strftime(DATE_FORMAT_STR), 

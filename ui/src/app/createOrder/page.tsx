@@ -42,7 +42,7 @@ export default function CreateOrderPage() {
     console.log('Submitting:', formData);
 
     try {
-      const response = await fetch('/api/neworder', {
+      const response = await fetch('http://localhost:5001/api/neworder', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,6 +97,29 @@ export default function CreateOrderPage() {
             <label htmlFor="originLocation" className="">
               Origin Location *
             </label>
+            <select
+              id="originLocation"
+              name="originLocation"
+              value={formData.originLocation}
+              onChange={handleInputChange}
+              required
+              className=""
+              defaultValue="toronto"
+            >
+              <option value="toronto">Toronto</option>
+              <option value="houston">Houston</option>
+              <option value="rio de janeiro">Rio de Janeiro</option>
+              <option value="berlin">Berlin</option>
+              <option value="cairo">Cairo</option>
+              <option value="mumbai">Mumbai</option>
+              <option value="shanghai">Shanghai</option>
+              <option value="sydney">Syndey</option>
+            </select>
+          </div>
+          {/* <div>
+            <label htmlFor="originLocation" className="">
+              Origin Location *
+            </label>
             <input
               type="text"
               id="originLocation"
@@ -107,8 +130,31 @@ export default function CreateOrderPage() {
               className=""
               placeholder="e.g., 123 Sesame St."
             />
-          </div>
+          </div> */}
           <div>
+            <label htmlFor="destinationLocation" className="">
+              Destination Location *
+            </label>
+            <select
+              id="destinationLocation"
+              name="destinationLocation"
+              value={formData.destinationLocation}
+              onChange={handleInputChange}
+              required
+              className=""
+              defaultValue="toronto"
+            >
+              <option value="toronto">Toronto</option>
+              <option value="houston">Houston</option>
+              <option value="rio de janeiro">Rio de Janeiro</option>
+              <option value="berlin">Berlin</option>
+              <option value="cairo">Cairo</option>
+              <option value="mumbai">Mumbai</option>
+              <option value="shanghai">Shanghai</option>
+              <option value="sydney">Syndey</option>
+            </select>
+          </div>
+          {/* <div>
             <label htmlFor="destinationLocation" className="">
               Destination Location *
             </label>
@@ -122,7 +168,7 @@ export default function CreateOrderPage() {
               className=""
               placeholder="e.g., 123 Sesame St."
             />
-          </div>
+          </div> */}
         </div>
 
         {/* Items/Cargo Details */}
@@ -231,12 +277,13 @@ export default function CreateOrderPage() {
               onChange={handleInputChange}
               required
               className=""
+              defaultValue="none"
             >
               <option value="none">None</option>
               <option value="truck">Truck</option>
               <option value="air">Air</option>
               <option value="rail">Rail</option>
-              <option value="ocean">Boat</option>
+              <option value="ocean">Sea</option>
             </select>
           </div>
           <div>
@@ -250,6 +297,7 @@ export default function CreateOrderPage() {
               onChange={handleInputChange}
               required
               className=""
+              defaultValue="standard"
             >
               <option value="standard">Standard</option>
               <option value="express">Express</option>

@@ -1,4 +1,6 @@
 # orders_api/main.py
+from enum import Enum
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -10,6 +12,8 @@ import json
 import os
 import pymysql
 import logging
+
+DATE_FORMAT_STR = "%Y-%m-%d"
 
 TRACKING_CHANNEL_CREATE_UPDATE = 'Tracking-Updates'
 NEW_ORDER_CHANNEL = 'New-Order'
@@ -23,7 +27,7 @@ app = FastAPI()
 
 # Basic logging config
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.ERROR,
     format="%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -74,6 +78,16 @@ def create_order(order: OrderCreate):
         logger.debug("Got DB connection")
         cursor = conn.cursor()
 
+        location_map = {
+            "toronto": "Toronto",
+            "houston": "Houston",
+            "rio de janeiro": "Rio de Janeiro",
+            "cairo": "Cairo",
+            "berlin": "Berlin",
+            "mumbai": "Mumbai",
+            "shanghai": "Shanghai",
+            "sydney": "Sydney"
+        }
         transport_map = {
             "truck": "Truck",
             "air": "Air",
@@ -84,6 +98,8 @@ def create_order(order: OrderCreate):
             "standard": "Standard",
             "express": "Express",
         }
+        origin = location_map.get(order.originLocation, "Toronto")
+        destination = location_map.get(order.destinationLocation, "Toronto")
         db_mode = transport_map.get(order.transportMode, "Truck")
         db_priority = priority_map.get(order.priority, "Standard")
         orderDate = datetime.now()
@@ -97,18 +113,20 @@ def create_order(order: OrderCreate):
                 priority, preferredtransportmode, status
             ) VALUES (
                 NOW(), %s, %s, %s,
-                %s, %s, 
+                %s, %s,
                 %s, %s, %s
             )
         """
+
+        print(f"Inserting {order}")
 
         logger.debug("Executing INSERT INTO orders")
         cursor.execute(
             sql,
             (
                 order.username,
-                order.originLocation,
-                order.destinationLocation,
+                origin,
+                destination,
                 order.itemWeight,
                 volume_m3,
                 db_priority,
@@ -127,36 +145,51 @@ def create_order(order: OrderCreate):
         logger.debug("Connecting to RabbitMQ")
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
         channel = connection.channel()
-        channel.queue_declare(queue=TRACKING_CHANNEL_CREATE_UPDATE, durable=True)
+        channel.queue_declare(queue=TRACKING_CHANNEL_CREATE_UPDATE)
+
+        class TransitMethod(Enum):
+            Sea = 1
+            Rail = 2
+            Truck = 3
+            Air = 4
+
+        class OrderStatus(Enum):
+            Created = 1
+            Processing = 2 
+            Shipped = 3
+            Delivered = 4 
+            Cancelled = 5
 
         order = {
             "username": order.username,
-            "orderNumber": order_id,
+            "orderNumber": str(order_id),
             "parentNumber": '',
-            "orderDate:": orderDate.strftime("%Y-%m-%d"),
-            "currentLocation": order.originLocation,
-            "targetLocation": order.destinationLocation,
-            "diskm": 0,
-            "transportationMethod": db_mode,
-            "orderStatus": 'Created'
+            "orderDate": orderDate.strftime("%Y-%m-%d"),
+            "currentLocation": origin,
+            "targetLocation": destination,
+            "distkm": 0,
+            "transporationMethod": TransitMethod[db_mode].value, # [sic]
+            "orderStatus": OrderStatus['Created'].value
         }
-        logger.debug("Publishing to TRACKING_CHANNEL_CREATE_UPDATE")
+
+        print(f"Publishing to {TRACKING_CHANNEL_CREATE_UPDATE}: {order}")
         channel.basic_publish(
             exchange='',
             routing_key=TRACKING_CHANNEL_CREATE_UPDATE,
             body=json.dumps(order),
             properties=pika.BasicProperties(delivery_mode=2)
         )
-
+    
         # Notify consolidtion via rabbitmq
         logger.debug("Declaring NEW_ORDER_CHANNEL")
-        channel.queue_declare(queue=NEW_ORDER_CHANNEL, durable=True)  # in case it doesn’t exist yet
+        channel.queue_declare(queue=NEW_ORDER_CHANNEL)  # in case it doesn’t exist yet
 
         new_order_msg = {
             "event": "new order",
             "orderId": order_id,
         }
 
+        print(f"Publishing to {NEW_ORDER_CHANNEL}: {new_order_msg}")
         channel.basic_publish(
             exchange='',
             routing_key=NEW_ORDER_CHANNEL,
