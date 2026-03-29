@@ -5,11 +5,16 @@ import os
 import pika
 import random
 import time
-from typing import List
+from enum import Enum
+
+DATE_FORMAT_STR = "%Y-%m-%d"
 
 CONSOLIDATION_CHANNEL = 'Consolidation-Updates'
-DB_HOST = os.environ.get("DB_HOST", "shipmentdb")
-DB_NAME = os.environ.get("DB_NAME", "shipmentdb")
+TRACKING_CHANNEL = 'Tracking-Updates'
+SHIP_DB_HOST = os.environ.get("SHIP_DB_HOST", "shipmentdb")
+SHIP_DB_NAME = os.environ.get("SHIP_DB_NAME", "shipmentdb")
+ORDER_DB_HOST = os.environ.get("ORDER_DB_HOST", "orderdb")
+ORDER_DB_NAME = os.environ.get("ORDER_DB_NAME", "orderdb")
 DB_USER = os.environ.get("DB_USER", "root")
 DB_PASS = os.environ.get("DB_PASS", "mypass")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
@@ -155,14 +160,23 @@ def tiebreak_express(a, b):
 
 class RouteService():
     def __init__(self):
-        self.db_conn = mysql.connector.connect(
-            host=DB_HOST,
+        self.ship_db_conn = mysql.connector.connect(
+            host=SHIP_DB_HOST,
             port=3306,
             user=DB_USER,
             password=DB_PASS,
-            database=DB_NAME
+            database=SHIP_DB_NAME
         )
-        print(f"Connected to {DB_HOST}")
+        print(f"Connected to {SHIP_DB_HOST}")
+
+        self.order_db_conn = mysql.connector.connect(
+            host=ORDER_DB_HOST,
+            port=3306,
+            user=DB_USER,
+            password=DB_PASS,
+            database=ORDER_DB_NAME
+        )
+        print(f"Connected to {ORDER_DB_HOST}")
 
         self.mq_conn = pika.BlockingConnection(
             pika.ConnectionParameters(host=RABBITMQ_HOST)
@@ -175,19 +189,82 @@ class RouteService():
         mq_channel.start_consuming()
 
     def on_new_consolidate(self, ch, method, properties, body):
-        data = json.loads(body.decode())
-        print(f"Received: {data}")
+        shipment = json.loads(body.decode())
+        print(f"Received: {shipment}")
 
-        src = LOCATIONS[data['origin']]
-        dst = LOCATIONS[data['destination']]
-        pri = data['priority']
-        pre = data['transport_method']
+        src = LOCATIONS[shipment['origin']]
+        dst = LOCATIONS[shipment['destination']]
+        pri = shipment['priority']
+        pre = shipment['transport_method']
 
         g = build_graph()
         route = find_route(g, src, dst, pri, pre)
         print(route)
 
-        # TODO: insert shipment and route into databse
+        with self.ship_db_conn.cursor() as cursor:
+            route_query = "INSERT INTO routes (Route, DistKM) VALUES (%s, %s)"
+            route_values = (json.dumps(route), 240)
+
+            cursor.execute(route_query, route_values)
+            self.ship_db_conn.commit()
+            route_id = cursor.lastrowid
+
+            shipment_query = "INSERT INTO shipments (Origin, Destination, TotalWeightKG, TotalVolumnM3, OrderIDs, Priority, PreferredTransportMode, OrderStatus, RouteID) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            shipment_values = (
+                (shipment["origin"],
+                    shipment["destination"],
+                    shipment["total_weight_kg"],
+                    shipment["total_volume_m3"],
+                    json.dumps(shipment["order_ids"]),
+                    shipment.get("priority", "Standard"),
+                    shipment.get("transport_method", "None"),
+                    "Created",
+                    route_id)
+            )
+
+            cursor.execute(shipment_query, shipment_values)
+            self.ship_db_conn.commit()
+            shipment_id = cursor.lastrowid
+            print(f"Inserted shipment {shipment_id} with route {route_id}")
+
+        with self.order_db_conn.cursor() as cursor:
+            for order_id in shipment["order_ids"]:
+                print(order_id)
+                order_query = "SELECT * FROM orders WHERE ID = %s"
+                order_values = (order_id,)
+
+                cursor.execute(order_query, order_values)
+                order = cursor.fetchone()
+
+                class TransitMethod(Enum):
+                    Sea = 1
+                    Rail = 2
+                    Truck = 3
+                    Air = 4
+
+                class OrderStatus(Enum):
+                    Created = 1
+                    Processing = 2 
+                    Shipped = 3
+                    Delivered = 4 
+                    Cancelled = 5
+
+                tracking = {
+                    "username": "newuser",
+                    "orderNumber": str(order[0]),
+                    "parentNumber": str(shipment_id),
+                    "orderDate": order[1].strftime(DATE_FORMAT_STR), 
+                    "currentLocation": shipment["origin"],
+                    "targetLocation": shipment["destination"],
+                    "distkm": 123,
+                    "transporationMethod": TransitMethod[shipment.get("transport_method", "None")].value,
+                    "orderStatus": OrderStatus["Created"].value
+                }
+
+                channel = self.mq_conn.channel()
+                channel.queue_declare(queue=TRACKING_CHANNEL)
+                channel.basic_publish("", routing_key=TRACKING_CHANNEL, body=json.dumps(tracking))
+                print(f"Published tracking to {TRACKING_CHANNEL}: {tracking}")
 
 
 if __name__ == "__main__":
