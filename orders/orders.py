@@ -7,18 +7,26 @@ import mysql.connector
 from datetime import datetime
 import pika
 import json
+import os
+import pymysql
 
 TRACKING_CHANNEL_CREATE_UPDATE = 'Tracking-Updates'
+NEW_ORDER_CHANNEL = 'New-Order'
 
+DB_HOST = os.environ.get("DB_HOST", "ordersdb")
+DB_USER = os.environ.get("DB_USER", "root")
+DB_PASS = os.environ.get("DB_PASS", "mypass")
+DB_NAME = os.environ.get("DB_NAME", "ordersdb")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+#app.add_middleware(
+#    CORSMiddleware,
+#    allow_origins=["http://localhost:3000"],  
+#    allow_credentials=True,
+#    allow_methods=["*"],
+#    allow_headers=["*"],
+#)
 
 class OrderCreate(BaseModel):
     username: str
@@ -33,12 +41,19 @@ class OrderCreate(BaseModel):
     transportMode: str
     priority: str
 
-def get_db():
-    return mysql.connector.connect(
-        unix_socket="/opt/local/var/run/mariadb/mysqld.sock",
-        user="root",
-        password="root",
-        database="transportation",
+def get_db(self):
+#    return mysql.connector.connect(
+#        unix_socket="/opt/local/var/run/mariadb/mysqld.sock",
+#        user="root",
+#        password="root",
+#        database="transportation",
+#    )
+    self.connection = pymysql.connect(
+            host=DB_HOST,
+            port=3306,
+            user=DB_USER,
+            password=DB_PASS,
+            database=DB_NAME
     )
 
 
@@ -96,7 +111,7 @@ def create_order(order: OrderCreate):
         conn.close()
 
         # Send to tracking channel via RabbitMQ 
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
         channel = connection.channel()
         channel.queue_declare(queue=TRACKING_CHANNEL_CREATE_UPDATE, durable=True)
 
@@ -104,7 +119,7 @@ def create_order(order: OrderCreate):
             "username": order.username,
             "orderNumber": order_id,
             "parentNumber": '',
-            "orderDate:": orderDate.isoformat(),
+            "orderDate:": orderDate.strftime("%Y-%m-%d"),
             "currentLocation": order.originLocation,
             "targetLocation": order.destinationLocation,
             "diskm": 0,
@@ -118,6 +133,21 @@ def create_order(order: OrderCreate):
             properties=pika.BasicProperties(delivery_mode=2)
         )
 
+        # Notify consolidtion via rabbitmq
+        channel.queue_declare(queue=NEW_ORDER_CHANNEL, durable=True)  # in case it doesn’t exist yet
+
+        new_order_msg = {
+            "event": "new order",
+            "orderId": order_id,
+        }
+
+        channel.basic_publish(
+            exchange='',
+            routing_key=NEW_ORDER_CHANNEL,
+            body=json.dumps(new_order_msg),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+        
         connection.close()
 
         return {"ok": True, "orderId": order_id}
