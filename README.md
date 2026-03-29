@@ -47,7 +47,6 @@ CREATE TABLE orders (
 ```sql
 CREATE TABLE shipments (
     ShipmentID INT AUTO_INCREMENT PRIMARY KEY,
-    Created DATETIME,
     Origin VARCHAR(255),
     Destination VARCHAR(255),
     TotalWeightKG DOUBLE,

@@ -44,6 +44,7 @@ services:
       no_cache: true
     depends_on:
       - rabbitmq
+      - orderdb
       - shipmentdb
     restart: unless-stopped
 
