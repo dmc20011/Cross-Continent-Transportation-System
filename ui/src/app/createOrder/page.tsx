@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { FormEvent } from 'react';
 
 interface OrderFormData {
-  customerName: string;
+  username: string;
   originLocation: string;
   destinationLocation: string;
   itemLength: number;
@@ -19,7 +19,7 @@ interface OrderFormData {
 
 export default function CreateOrderPage() {
   const [formData, setFormData] = useState<OrderFormData>({
-    customerName: '',
+    username: '',
     originLocation: '',
     destinationLocation: '',
     itemLength: 1,
@@ -37,11 +37,34 @@ export default function CreateOrderPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Order submitted:', formData);
-    // API call, etc.
-    alert('Order submitted successfully!');
+    console.log('Submitting:', formData);
+
+    try {
+      const response = await fetch('/api/neworder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          // make sure your TS enum values match what FastAPI expects
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text(); // or response.json() if JSON
+        console.error('API error:', response.status, errorText);
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      alert(`Order submitted successfully! Order ID: ${result.orderId}`);
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Failed to submit order. Please try again.');
+    }
   };
 
   return (
@@ -51,20 +74,20 @@ export default function CreateOrderPage() {
       </h1>
       
       <form onSubmit={handleSubmit} className="">
-        {/* Customer Name */}
+        {/* UserName */}
         <div>
-          <label htmlFor="customerName" className="">
-            Customer Name *
+          <label htmlFor="username" className="">
+            Username *
           </label>
           <input
             type="text"
-            id="customerName"
-            name="customerName"
-            value={formData.customerName}
+            id="username"
+            name="username"
+            value={formData.username}
             onChange={handleInputChange}
             required
             className=""
-            placeholder="Enter customer name"
+            placeholder="Enter username"
           />
         </div>
 

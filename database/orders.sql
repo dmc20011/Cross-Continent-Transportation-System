@@ -1,7 +1,7 @@
 CREATE TABLE orders (
     ID INT AUTO_INCREMENT PRIMARY KEY,
     Created DATETIME,
-    CustomerInfo JSON,
+    Username VARCHAR(255),
     Origin VARCHAR(255),
     Destination VARCHAR(255),
     WeightKG DOUBLE,
@@ -11,7 +11,9 @@ CREATE TABLE orders (
     Status ENUM('Created', 'Processing', 'Shipped', 'Delivered', 'Cancelled')
 );
 
-INSERT INTO orders (ID, Created, CustomerInfo, Origin, Destination, WeightKG, VolumeM3, Priority, PreferredTransportMode, Status) VALUES
-(1001, '2023-05-19 08:55:00', '{"name": "Robert Wilson", "email": "robert@example.com"}', 'Toronto', 'Cairo', 22.3, 0.7, 'Standard', 'Rail', 'Created'),
-(1002, '2023-06-19 08:55:00', '{"name": "First Smith", "email": "first@example.com"}', 'Toronto', 'Cairo', 22.3, 0.7, 'Standard', 'Rail', 'Created'),
-(1003, '2023-07-19 08:55:00', '{"name": "John Last", "email": "john@example.com"}', 'Toronto', 'Cairo', 22.3, 0.7, 'Standard', 'Rail', 'Created');
+INSERT INTO orders (created, customer_info, origin, destination, weight_kg, volume_m3, priority, preferred_transport_mode, status) VALUES
+('2023-05-15 09:30:00', 'JohnSmith', 'Toronto', 'Shanghai', 25.5, 0.8, 'Express', 'Sea', 'Created'),
+('2023-05-16 14:45:00', 'SarahJohnson', 'Cairo', 'Shanghai', 15.2, 0.5, 'Standard', 'Truck', 'Processing'),
+('2023-05-17 11:20:00', 'MichaelBrown', 'Berlin', 'Houston', 30.0, 1.2, 'Express', 'Rail', 'Shipped'),
+('2023-05-18 16:10:00', 'EmilyDavis', 'Cairo', 'Sydney', 8.7, 0.3, 'Standard', 'Truck', 'Delivered'),
+('2023-05-19 08:55:00', 'Robert Wilson', 'Mumbai', 'Rio de Janeiro', 22.3, 0.7, 'Standard', 'Air', 'Created');
