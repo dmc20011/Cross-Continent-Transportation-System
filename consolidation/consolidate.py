@@ -3,6 +3,7 @@ import pika
 import pymysql
 import threading
 import json
+import requests
 from fastapi import FastAPI, HTTPException
 
 CONSOLIDATION_CHANNEL = 'Consolidation-Updates'
@@ -15,6 +16,10 @@ DB_NAME = os.environ.get("DB_NAME", "shipmentdb")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 MAX_WEIGHT_KG = int(os.environ.get("MAX_WEIGHT_KG", 1000))
 MAX_VOLUME_M3 = int(os.environ.get("MAX_VOLUME_M3", 10))
+
+VALID_CITIES = [
+    "Toronto", "Houston", "Mumbai", "Shanghai", "Sydney", "Rio de Janeiro", "Cairo", "Berlin"
+]
 
 class PikaReceiver():
     def __init__(self, host, queue, callback):
@@ -106,6 +111,12 @@ class ConsolidationService():
         print(f"Inserted shipment: {shipment['order_ids']}")
 
     def consolidate(self, orders):
+        for order in orders:
+            if order["origin"] not in VALID_CITIES:
+                raise ValueError(f"Invalid origin: {order['origin']}")
+            if order["destination"] not in VALID_CITIES:
+                raise ValueError(f"Invalid destination: {order['destination']}")
+
         groups = {}
         for order in orders: # Sort 'em
             key = (order["origin"], order["destination"], order["priority"], order["transport_method"])
@@ -190,5 +201,6 @@ def update_shipment(shipment_id: int, status: str):
 ## Manual consolidation trigger
 @app.post("/consolidate")
 def consolidate():
-
-    pass
+    orders = requests.get("http://orderservice:PORT/orders?status=pending").json()
+    shipments = service.consolidate(orders)
+    return {"shipments_created": len(shipments), "shipments": shipments}
