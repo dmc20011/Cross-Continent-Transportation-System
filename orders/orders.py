@@ -9,6 +9,7 @@ import pika
 import json
 import os
 import pymysql
+import logging
 
 TRACKING_CHANNEL_CREATE_UPDATE = 'Tracking-Updates'
 NEW_ORDER_CHANNEL = 'New-Order'
@@ -19,6 +20,13 @@ DB_PASS = os.environ.get("DB_PASS", "mypass")
 DB_NAME = os.environ.get("DB_NAME", "orderdb")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 app = FastAPI()
+
+# Basic logging config
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 #app.add_middleware(
 #    CORSMiddleware,
@@ -59,8 +67,11 @@ def get_db():
 
 @app.post("/api/neworder")
 def create_order(order: OrderCreate):
+    logger.info("BEGIN create_order")
     try:
+        logger.debug("Calling get_db()")
         conn = get_db()
+        logger.debug("Got DB connection")
         cursor = conn.cursor()
 
         transport_map = {
@@ -81,36 +92,39 @@ def create_order(order: OrderCreate):
 
         sql = """
             INSERT INTO orders (
-                created, origin, destination, dist_km,
-                weight_kg, volume_m3, username,
-                priority, preferred_transport_mode, status
+                created, username, origin, destination,
+                weightkg, volumem3,
+                priority, preferredtransportmode, status
             ) VALUES (
                 NOW(), %s, %s, %s,
-                %s, %s, %s,
-                %s, %s, 'Created'
+                %s, %s, 
+                %s, %s, %s
             )
         """
 
+        logger.debug("Executing INSERT INTO orders")
         cursor.execute(
             sql,
             (
+                order.username,
                 order.originLocation,
                 order.destinationLocation,
-                dist_km,
                 order.itemWeight,
                 volume_m3,
-                order.username,
                 db_priority,
                 db_mode,
+                "Created"
             ),
         )
 
         conn.commit()
         order_id = cursor.lastrowid
+        logger.debug(f"Inserted order, order_id={order_id}")
         cursor.close()
         conn.close()
 
         # Send to tracking channel via RabbitMQ 
+        logger.debug("Connecting to RabbitMQ")
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
         channel = connection.channel()
         channel.queue_declare(queue=TRACKING_CHANNEL_CREATE_UPDATE, durable=True)
@@ -126,6 +140,7 @@ def create_order(order: OrderCreate):
             "transportationMethod": db_mode,
             "orderStatus": 'Created'
         }
+        logger.debug("Publishing to TRACKING_CHANNEL_CREATE_UPDATE")
         channel.basic_publish(
             exchange='',
             routing_key=TRACKING_CHANNEL_CREATE_UPDATE,
@@ -134,6 +149,7 @@ def create_order(order: OrderCreate):
         )
 
         # Notify consolidtion via rabbitmq
+        logger.debug("Declaring NEW_ORDER_CHANNEL")
         channel.queue_declare(queue=NEW_ORDER_CHANNEL, durable=True)  # in case it doesn’t exist yet
 
         new_order_msg = {
@@ -150,6 +166,10 @@ def create_order(order: OrderCreate):
 
         connection.close()
 
+        logger.debug("RabbitMQ publish done")
+
+        logger.info("END create_order: success")
+
         return {"ok": True, "orderId": order_id}
     
     except Exception as e:
@@ -159,14 +179,18 @@ def create_order(order: OrderCreate):
 @app.get("/orders")
 def get_order_data():
     try:
+        logger.debug("Calling get_db()")
         print(f"getting all orders")
         orders = []
         conn = get_db()
+        logger.debug("Got DB connection")
         cursor = conn.cursor()
+        logger.debug("Executing SELECT * FROM orders")
         cursor.execute("SELECT * FROM orders")
         for item in cursor.fetchall():
             orders.append(item)
 
+        logger.info("END get_order_data: success")
         return {"orders": orders}
     except Exception as e:
         print("Error in getting orders:", e)
