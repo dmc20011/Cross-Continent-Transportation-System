@@ -18,8 +18,5 @@ CREATE TABLE shipments (
     FOREIGN KEY (RouteID) REFERENCES routes(RouteID)
 );
 
-INSERT INTO shipments (Origin, Destination, TotalWeightKG, TotalVolumnM3, OrderIDs, Priority, PreferredTransportMode, OrderStatus, RouteID) VALUES
-('Berlin', 'Shanghai', 25.5, 0.8, '{}', 'Standard', 'None', 'Created', NULL),
-('Berlin', 'Shanghai', 18.7, 0.3, '{}', 'Standard', 'Air', 'Created', NULL),
-('Berlin', 'Shanghai', 22.3, 0.7, '{}', 'Express', 'None', 'Created', NULL),
-('Berlin', 'Shanghai', 36.3, 1.1, '{}', 'Express', 'Truck', 'Created', NULL);
+-- INSERT INTO shipments (Origin, Destination, TotalWeightKG, TotalVolumnM3, OrderIDs, Priority, PreferredTransportMode, OrderStatus, RouteID) VALUES
+-- ('Berlin', 'Shanghai', 36.3, 1.1, '{}', 'Express', 'Truck', 'Created', NULL);
