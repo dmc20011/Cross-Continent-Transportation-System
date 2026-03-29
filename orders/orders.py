@@ -41,14 +41,14 @@ class OrderCreate(BaseModel):
     transportMode: str
     priority: str
 
-def get_db(self):
+def get_db():
 #    return mysql.connector.connect(
 #        unix_socket="/opt/local/var/run/mariadb/mysqld.sock",
 #        user="root",
 #        password="root",
 #        database="transportation",
 #    )
-    self.connection = pymysql.connect(
+    return pymysql.connect(
             host=DB_HOST,
             port=3306,
             user=DB_USER,
