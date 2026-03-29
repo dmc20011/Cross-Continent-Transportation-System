@@ -151,9 +151,18 @@ class TrackingService():
                     deliveryEstimateLate, orderStatus
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
+                    parentNumber = VALUES(parentNumber),
                     lastUpdate = VALUES(lastUpdate),
+                    startLocation = VALUES(startLocation),
+                    targetLocation = VALUES(targetLocation),
                     currentLocation = VALUES(currentLocation),
+                    distKM = VALUES(distKM),
+                    transportMethod= VALUES(transportMethod),
+                    deliveryEstimateEarly = VALUES(deliveryEstimateEarly),
+                    deliveryEstimateLate = VALUES(deliveryEstimateLate),
                     orderStatus = VALUES(orderStatus)
+                    
+                        
             """, (
                 tracking_item.username,
                 tracking_item.orderNumber,
@@ -284,6 +293,7 @@ service = TrackingService(os.getenv("RABBITMQ_HOST"), os.getenv("DB_HOST"), os.g
 
 
 def lifespan(app: FastAPI, service: TrackingService = service):
+    time.sleep(5)
     service.connect_rabbitmq()
     yield  # do then wait for execution, then finish when done
     service.upsert_thread.stop()

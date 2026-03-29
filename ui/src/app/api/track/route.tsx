@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const NEXT_PUBLIC_API = process.env.NEXT_PUBLIC_API;
+const NEXT_PUBLIC_API = process.env.NEXT_PUBLIC_API_TRACK;
 
 console.log(`Got api: ${NEXT_PUBLIC_API}`)
 

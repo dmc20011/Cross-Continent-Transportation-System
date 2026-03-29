@@ -24,7 +24,19 @@ DB_PASS = os.environ.get("DB_PASS", "mypass")
 DB_NAME = os.environ.get("DB_NAME", "orderdb")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 app = FastAPI()
-
+app = FastAPI()
+origins = ["http://localhost:3000",
+           "http://localhost:8000",
+           "http://localhost:*",
+           "https://localhost:8000/*",
+           "https://localhost:3000/*", "*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Basic logging config
 logging.basicConfig(
     level=logging.ERROR,
@@ -32,13 +44,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-#app.add_middleware(
+# app.add_middleware(
 #    CORSMiddleware,
-#    allow_origins=["http://localhost:3000"],  
+#    allow_origins=["http://localhost:3000"],
 #    allow_credentials=True,
 #    allow_methods=["*"],
 #    allow_headers=["*"],
-#)
+# )
+
 
 class OrderCreate(BaseModel):
     username: str
@@ -53,19 +66,20 @@ class OrderCreate(BaseModel):
     transportMode: str
     priority: str
 
+
 def get_db():
-#    return mysql.connector.connect(
-#        unix_socket="/opt/local/var/run/mariadb/mysqld.sock",
-#        user="root",
-#        password="root",
-#        database="transportation",
-#    )
+    #    return mysql.connector.connect(
+    #        unix_socket="/opt/local/var/run/mariadb/mysqld.sock",
+    #        user="root",
+    #        password="root",
+    #        database="transportation",
+    #    )
     return pymysql.connect(
-            host=DB_HOST,
-            port=3306,
-            user=DB_USER,
-            password=DB_PASS,
-            database=DB_NAME
+        host=DB_HOST,
+        port=3306,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME
     )
 
 
@@ -141,9 +155,10 @@ def create_order(order: OrderCreate):
         cursor.close()
         conn.close()
 
-        # Send to tracking channel via RabbitMQ 
+        # Send to tracking channel via RabbitMQ
         logger.debug("Connecting to RabbitMQ")
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(host=RABBITMQ_HOST))
         channel = connection.channel()
         channel.queue_declare(queue=TRACKING_CHANNEL_CREATE_UPDATE)
 
@@ -155,9 +170,9 @@ def create_order(order: OrderCreate):
 
         class OrderStatus(Enum):
             Created = 1
-            Processing = 2 
+            Processing = 2
             Shipped = 3
-            Delivered = 4 
+            Delivered = 4
             Cancelled = 5
 
         order = {
@@ -168,7 +183,7 @@ def create_order(order: OrderCreate):
             "currentLocation": origin,
             "targetLocation": destination,
             "distkm": 0,
-            "transporationMethod": TransitMethod[db_mode].value, # [sic]
+            "transporationMethod": TransitMethod[db_mode].value,  # [sic]
             "orderStatus": OrderStatus['Created'].value
         }
 
@@ -179,10 +194,11 @@ def create_order(order: OrderCreate):
             body=json.dumps(order),
             properties=pika.BasicProperties(delivery_mode=2)
         )
-    
+
         # Notify consolidtion via rabbitmq
         logger.debug("Declaring NEW_ORDER_CHANNEL")
-        channel.queue_declare(queue=NEW_ORDER_CHANNEL)  # in case it doesn’t exist yet
+        # in case it doesn’t exist yet
+        channel.queue_declare(queue=NEW_ORDER_CHANNEL)
 
         new_order_msg = {
             "event": "new order",
@@ -204,10 +220,11 @@ def create_order(order: OrderCreate):
         logger.info("END create_order: success")
 
         return {"ok": True, "orderId": order_id}
-    
+
     except Exception as e:
         print("Error in create_order:", e)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/orders")
 def get_order_data():
@@ -228,4 +245,3 @@ def get_order_data():
     except Exception as e:
         print("Error in getting orders:", e)
         raise HTTPException(status_code=500, detail=str(e))
-
