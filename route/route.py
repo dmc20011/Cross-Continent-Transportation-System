@@ -187,7 +187,29 @@ class RouteService():
         route = find_route(g, src, dst, pri, pre)
         print(route)
 
-        # TODO: insert shipment and route into databse
+        with self.db_conn.cursor() as cursor:
+            route_query = "INSERT INTO routes (Route, DistKM) VALUES (%s, %s)"
+            route_values = (json.dumps(route), 240)
+            cursor.execute(route_query, route_values)
+            self.db_conn.commit()
+            route_id = cursor.lastrowid
+
+            shipment_query = "INSERT INTO shipments (Origin, Destination, TotalWeightKG, TotalVolumnM3, OrderIDs, Priority, PreferredTransportMode, OrderStatus, RouteID) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            shipment_values = (
+                (data["origin"],
+                 data["destination"],
+                 data["total_weight_kg"],
+                 data["total_volume_m3"],
+                 json.dumps(data["order_ids"]),
+                 data.get("priority", "Standard"),
+                 data.get("transport_method", "None"),
+                 "Created",
+                 route_id)
+            )
+            cursor.execute(shipment_query, shipment_values)
+            self.db_conn.commit()
+            shipment_id = cursor.lastrowid
+            print(f"Inserted shipment {shipment_id} with route {route_id}")
 
 
 if __name__ == "__main__":

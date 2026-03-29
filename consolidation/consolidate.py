@@ -90,6 +90,10 @@ class ConsolidationService():
         self.receiver_thread.run()
 
     def publish_shipment(self, shipment):
+        try: # connection times out after a few mins for some reason, just reopen it
+            self.mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+        except:
+            pass
         channel = self.mq_connection.channel()
         channel.queue_declare(queue=CONSOLIDATION_CHANNEL)
         channel.basic_publish("", routing_key=CONSOLIDATION_CHANNEL, body=json.dumps(shipment))
@@ -153,7 +157,7 @@ class ConsolidationService():
                     "priority": priority,
                     "transport_method": transport_method
                 }
-                self.save_shipment(shipment)
+                # self.save_shipment(shipment)
                 self.publish_shipment(shipment)
                 shipments.append(shipment)
         return shipments
@@ -165,7 +169,7 @@ service = ConsolidationService()
 @app.on_event("startup")
 def startup():
     service.connect_to_db()
-    service.init_db()
+    # service.init_db()
     service.connect_rabbitmq()
 
 ## Simple service life-check
@@ -204,3 +208,16 @@ def consolidate():
     orders = requests.get("http://orderservice:PORT/orders?status=pending").json()
     shipments = service.consolidate(orders)
     return {"shipments_created": len(shipments), "shipments": shipments}
+
+@app.post("/test/publish")
+def test():
+    shipment = {
+        "origin": "Toronto",
+        "destination": "Cairo",
+        "total_weight_kg": 34,
+        "total_volume_m3": 1.2,
+        "order_ids": [1001, 1002, 1003],
+        "priority": "Standard",
+        "transport_method": "Rail"
+    }
+    ConsolidationService.publish_shipment(service, shipment)
