@@ -114,7 +114,22 @@ class ConsolidationService():
         self.connection.commit()
         print(f"Inserted shipment: {shipment['order_ids']}")
 
-    def consolidate(self, orders):
+    def consolidate(self, order_rows):
+        orders = []
+        for row in order_rows:
+            orders.append({
+                "id": row[0],
+                "created": row[1],
+                "username": row[2],
+                "origin": row[3],
+                "destination": row[4],
+                "item_weight": row[5],
+                "item_volume": row[6],
+                "priority": row[7],
+                "transport_method": row[8],
+                "status": row[9]
+            })
+
         for order in orders:
             if order["origin"] not in VALID_CITIES:
                 raise ValueError(f"Invalid origin: {order['origin']}")
@@ -128,11 +143,11 @@ class ConsolidationService():
 
         shipments = []
         for (origin, destination, priority, transport_method), group in groups.items():
-            group.sort(key=lambda order: (order["pickup_deadline"], -order["item_weight"]))
+            group.sort(key=lambda order: (-order["item_weight"]))
             bins = []
 
             for order in group:
-                volume = order["item_length"] * order["item_width"] * order["item_height"]
+                volume = order["item_volume"]
                 weight = order["item_weight"]
 
                 added = False
@@ -205,7 +220,8 @@ def update_shipment(shipment_id: int, status: str):
 ## Manual consolidation trigger
 @app.post("/consolidate")
 def consolidate():
-    orders = requests.get("http://orderservice:PORT/orders?status=pending").json()
+    orders = requests.get("http://orderservice:5001/orders").json()['orders']
+    print(f"Manual consolidate for: {orders}")
     shipments = service.consolidate(orders)
     return {"shipments_created": len(shipments), "shipments": shipments}
 
