@@ -65,7 +65,25 @@ services:
       - rabbitmq
       - trackdb
     restart: unless-stopped
-      
+  
+  orderservice:
+    build:
+      context: ./orders
+      no_cache: true
+    ports:
+      - "5001:5001"
+    environment:
+      DB_HOST: orderdb
+      DB_PASS: mypass
+      DB_NAME: orderdb
+      DB_USER: root
+      RABBITMQ_HOST: rabbitmq  
+      MQ_USER: user
+      MQ_PASS: pass
+    depends_on:
+      - rabbitmq
+      - orderdb
+    restart: unless-stopped
 
   consolidation:
     build:

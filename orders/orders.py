@@ -13,10 +13,10 @@ import pymysql
 TRACKING_CHANNEL_CREATE_UPDATE = 'Tracking-Updates'
 NEW_ORDER_CHANNEL = 'New-Order'
 
-DB_HOST = os.environ.get("DB_HOST", "ordersdb")
+DB_HOST = os.environ.get("DB_HOST", "orderdb")
 DB_USER = os.environ.get("DB_USER", "root")
 DB_PASS = os.environ.get("DB_PASS", "mypass")
-DB_NAME = os.environ.get("DB_NAME", "ordersdb")
+DB_NAME = os.environ.get("DB_NAME", "orderdb")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 app = FastAPI()
 
@@ -147,7 +147,7 @@ def create_order(order: OrderCreate):
             body=json.dumps(new_order_msg),
             properties=pika.BasicProperties(delivery_mode=2)
         )
-        
+
         connection.close()
 
         return {"ok": True, "orderId": order_id}

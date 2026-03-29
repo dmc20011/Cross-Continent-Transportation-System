@@ -42,7 +42,7 @@ export default function CreateOrderPage() {
     console.log('Submitting:', formData);
 
     try {
-      const response = await fetch('http://localhost:8000/api/neworder', {
+      const response = await fetch('/api/neworder', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
