@@ -3,6 +3,8 @@ services:
     image: rabbitmq
     ports:
       - "5672:5672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
 
   shipmentdb:
@@ -13,6 +15,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
+      - shipmentdb_data:/var/lib/mysql
       - ./database/shipments.sql:/docker-entrypoint-initdb.d/shipments.sql
     restart: unless-stopped
 
@@ -24,6 +27,7 @@ services:
     ports:
       - "3307:3306"
     volumes:
+      - orderdb_data:/var/lib/mysql
       - ./database/orders.sql:/docker-entrypoint-initdb.d/orders.sql
     restart: unless-stopped
 
@@ -35,6 +39,7 @@ services:
     ports:
       - "3308:3306"
     volumes:
+      - trackdb_data:/var/lib/mysql
       - ./database/tracking.sql:/docker-entrypoint-initdb.d/tracking.sql
     restart: unless-stopped
 
@@ -117,4 +122,10 @@ services:
       - routeservice
       - consolidation
       - trackservice
-      
+
+
+volumes:
+  rabbitmq_data:
+  shipmentdb_data:
+  orderdb_data:
+  trackdb_data:

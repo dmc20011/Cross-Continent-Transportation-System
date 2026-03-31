@@ -151,9 +151,18 @@ class TrackingService():
                     deliveryEstimateLate, orderStatus
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
+                    parentNumber = VALUES(parentNumber),
                     lastUpdate = VALUES(lastUpdate),
+                    startLocation = VALUES(startLocation),
+                    targetLocation = VALUES(targetLocation),
                     currentLocation = VALUES(currentLocation),
+                    distKM = VALUES(distKM),
+                    transportMethod= VALUES(transportMethod),
+                    deliveryEstimateEarly = VALUES(deliveryEstimateEarly),
+                    deliveryEstimateLate = VALUES(deliveryEstimateLate),
                     orderStatus = VALUES(orderStatus)
+                    
+                        
             """, (
                 tracking_item.username,
                 tracking_item.orderNumber,
@@ -247,8 +256,8 @@ class TrackingService():
 
     def connect_rabbitmq(self):
         def create_update_cb(ch, method, properties, body):
-            print("Got an update req")
             data = json.loads(body.decode())
+            print(f"Received from {TRACKING_CHANNEL_CREATE_UPDATE}: {data}")
             body = CreateOrUpdateTracker(**data)
             if type(body) == CreateOrUpdateTracker:
                 print("create or update runs")
@@ -263,8 +272,8 @@ class TrackingService():
                 print("Error in Upsert thread: bad request")
 
         def delete_cb(ch, method, properties, body):
-            print("Got a delete req")
             data = json.loads(body.decode())
+            print(f"Received from {TRACKING_CHANNEL_DELETE}: {data}")
 
             if "orderNumber" in data.keys():
                 self.delete_order(data["username"], data["orderNumber"])
@@ -284,6 +293,7 @@ service = TrackingService(os.getenv("RABBITMQ_HOST"), os.getenv("DB_HOST"), os.g
 
 
 def lifespan(app: FastAPI, service: TrackingService = service):
+    time.sleep(5)
     service.connect_rabbitmq()
     yield  # do then wait for execution, then finish when done
     service.upsert_thread.stop()
