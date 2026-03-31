@@ -11,6 +11,10 @@
    ```bash
    docker compose up
    ```
+
+    open http://localhost:3000 in your browser. The page should load like this: <br>
+
+   <img width="570" height="210" alt="image" src="https://github.com/user-attachments/assets/d70a1744-6914-47bd-a3e8-b920995b1f19" />
    
 3. To stop the containers:
    ```bash
@@ -30,7 +34,3 @@
    ```bash
    docker compose down
    ```
-
-7. After starting the containers, open http://localhost:3000 in your browser. The page should load like this: <br>
-
-<img width="570" height="210" alt="image" src="https://github.com/user-attachments/assets/d70a1744-6914-47bd-a3e8-b920995b1f19" />
