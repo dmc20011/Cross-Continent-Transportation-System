@@ -2,15 +2,6 @@
 
 ## How to run Docker containers
 
-```bash
-docker compose build # rebuild all containers
-docker compose up # create and start all containers
-docker compose stop # stop all containers
-docker compose start # start all containers
-docker compose logs # view container logs
-docker compose down # stop and delete all containers
-```
-
 1. Build the containers:
    ```bash
    docker compose build
